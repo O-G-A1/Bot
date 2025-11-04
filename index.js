@@ -398,182 +398,109 @@ import nodemailer from "nodemailer";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(express.json());
 
-// ====== BOT INITIALIZATION ======
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-app.locals.sessions = new Map(); // for private Q&A sessions
+// === BOT INITIALIZATION ===
+const bot = new TelegramBot(process.env.BOT_TOKEN);
+const WEBHOOK_URL = process.env.WEBHOOK_URL; // e.g. your Vercel URL
 
-// ====== EMAIL CONFIGURATION ======
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
-const TO_EMAIL = process.env.TO_EMAIL;
+// Set webhook
+bot.setWebHook(`${WEBHOOK_URL}/webhook/${process.env.BOT_TOKEN}`);
 
+const sessions = new Map(); // For private chat steps
+
+// === EMAIL TRANSPORT ===
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
-// ====== HELPER FUNCTIONS ======
-async function sendMessage(chatId, text) {
-  try {
-    await bot.sendMessage(chatId, text);
-  } catch (err) {
-    console.error("🚨 Failed to send message:", err.message);
-  }
-}
+// === WEBHOOK ROUTE ===
+app.post(`/webhook/${process.env.BOT_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
-// ====== GROUP MANAGEMENT ======
-const bannedWords = ["scam", "fraud", "cheat"];
+// === COMMANDS ===
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from?.username || msg.from?.first_name || "there";
 
+  const startButton = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "🚀 Start App",
+            url: `https://t.me/${process.env.BOT_USERNAME}?start=app`,
+          },
+        ],
+      ],
+    },
+  };
+
+  bot.sendMessage(
+    chatId,
+    `👋 Hi @${username}! Welcome to the bot.\nPress below to start.`,
+    startButton
+  );
+});
+
+// === PRIVATE CHAT STEPS (same as before) ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim() || "";
-  const username = msg.from?.username || "Unknown";
-  const userId = msg.from?.id;
+  const userId = msg.from.id;
+  const text = msg.text;
   const isGroup = msg.chat.type.endsWith("group");
 
-  // Ignore service messages
-  if (!text) return;
+  // Skip commands and groups
+  if (isGroup || text.startsWith("/")) return;
 
-  // === Handle /rules command ===
-  if (text === "/rules") {
-    return sendMessage(
-      chatId,
-      "📜 Group Rules:\n1️⃣ No spam or scam links\n2️⃣ Be respectful\n3️⃣ Keep discussions relevant\n4️⃣ Admin decisions are final"
-    );
-  }
+  const questions = [
+    "📧 Please enter your email address:",
+    "📝 Briefly describe your issue:",
+    "📱 Which app or platform are you using?",
+  ];
 
-  // === Handle /ban command (Admins only) ===
-  if (text.startsWith("/ban") && isGroup) {
-    if (msg.from.is_bot) return;
-    const reply = msg.reply_to_message;
-    if (!reply)
-      return sendMessage(chatId, "Please reply to the user you want to ban.");
-    try {
-      await bot.banChatMember(chatId, reply.from.id);
-      return sendMessage(
-        chatId,
-        `🚫 User @${reply.from.username || "Unknown"} has been banned.`
-      );
-    } catch (err) {
-      console.error(err);
-      return sendMessage(chatId, "Failed to ban the user.");
-    }
-  }
+  const session = sessions.get(userId) || { step: 0, answers: [] };
 
-  // === Banned word detection ===
-  if (
-    isGroup &&
-    bannedWords.some((word) => text.toLowerCase().includes(word))
-  ) {
-    try {
-      await bot.deleteMessage(chatId, msg.message_id);
-      return sendMessage(
-        chatId,
-        `⚠️ @${username}, your message contained banned words.`
-      );
-    } catch (err) {
-      console.error("Failed to delete message:", err.message);
-    }
-  }
+  if (session.step < questions.length) {
+    session.answers.push(text);
+    session.step++;
 
-  // === Handle /purge command ===
-  if (text === "/purge" && isGroup) {
-    await sendMessage(chatId, "🧹 Group will be purged in 30 seconds!");
-    setTimeout(async () => {
+    if (session.step < questions.length) {
+      await bot.sendMessage(chatId, questions[session.step]);
+    } else {
+      const [firstMsg, email, issue, platform] = session.answers;
+
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: process.env.TO_EMAIL,
+        subject: `New Response from @${msg.from.username || "User"}`,
+        text: `🧾 New submission:\n\nFirst message: ${firstMsg}\nEmail: ${email}\nIssue: ${issue}\nPlatform: ${platform}`,
+      };
+
       try {
-        await sendMessage(chatId, "🚨 Group purged successfully.");
+        await transporter.sendMail(mailOptions);
+        await bot.sendMessage(
+          chatId,
+          "✅ Thank you! Your response was sent successfully."
+        );
       } catch (err) {
-        console.error(err);
+        console.error("Email error:", err);
+        await bot.sendMessage(chatId, "⚠️ Failed to send your response.");
       }
-    }, 30000);
-  }
 
-  // === Handle /remind command ===
-  if (text.startsWith("/remind") && isGroup) {
-    const parts = text.split(" ");
-    const minutes = parseInt(parts[1]);
-    const reminderMsg = parts.slice(2).join(" ");
-    if (!minutes || !reminderMsg)
-      return sendMessage(chatId, "Usage: /remind <minutes> <message>");
-    await sendMessage(chatId, `⏰ Reminder set for ${minutes} minute(s).`);
-    setTimeout(async () => {
-      await sendMessage(chatId, `🔔 Reminder: ${reminderMsg}`);
-    }, minutes * 60 * 1000);
-  }
-
-  // === Private Chat Flow ===
-  if (!isGroup && !text.startsWith("/")) {
-    const sessions = app.locals.sessions;
-    const userSession = sessions.get(userId) || { step: 0, answers: [] };
-    const questions = [
-      "📧 Please enter your email address:",
-      "📝 Briefly describe the issue you are experiencing:",
-      "📱 Which app or platform are you using?",
-    ];
-
-    // Step 0 → first user message
-    if (userSession.step === 0) {
-      userSession.answers.push(text);
-      await sendMessage(chatId, questions[0]);
-      userSession.step++;
-    } else if (userSession.step > 0 && userSession.step <= questions.length) {
-      userSession.answers.push(text);
-
-      if (userSession.step < questions.length) {
-        await sendMessage(chatId, questions[userSession.step]);
-        userSession.step++;
-      } else {
-        // ✅ All answers collected → send email
-        const [initialMsg, email, issue, platform] = userSession.answers;
-        const timestamp = new Date().toLocaleString();
-
-        const mailOptions = {
-          from: EMAIL_USER,
-          to: TO_EMAIL,
-          subject: `New Bot Submission from @${username}`,
-          text:
-            `🧾 New submission received:\n\n` +
-            `👤 Username: @${username}\n🆔 User ID: ${userId}\n📅 Time: ${timestamp}\n\n` +
-            `💬 Initial Message: ${initialMsg}\n📧 Email: ${email}\n📝 Issue: ${issue}\n📱 Platform: ${platform}`,
-        };
-
-        try {
-          await transporter.sendMail(mailOptions);
-          await sendMessage(
-            chatId,
-            "✅ Thank you! Your responses have been received and sent successfully."
-          );
-        } catch (emailErr) {
-          console.error("📧 Email sending failed:", emailErr.message);
-          await sendMessage(chatId, "⚠️ Failed to send your response.");
-        }
-
-        sessions.delete(userId);
-        return;
-      }
+      sessions.delete(userId);
     }
-
-    sessions.set(userId, userSession);
   }
+
+  sessions.set(userId, session);
 });
 
-// ====== WELCOME MESSAGES ======
-bot.on("new_chat_members", async (msg) => {
-  const chatId = msg.chat.id;
-  for (const member of msg.new_chat_members) {
-    await sendMessage(
-      chatId,
-      `👋 Welcome @${
-        member.username || member.first_name
-      }! Please read the group rules using /rules.`
-    );
-  }
+// === EXPRESS ROOT ROUTE ===
+app.get("/", (req, res) => {
+  res.send("🤖 Telegram Bot is live on Vercel!");
 });
 
-// ====== EXPRESS SERVER ======
-app.get("/", (req, res) =>
-  res.send("🤖 Telegram Bot is running successfully.")
-);
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+export default app;
