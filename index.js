@@ -159,348 +159,232 @@
 // console.log("✅ Bot script started...");
 // console.log("🧩 Loaded BOT_TOKEN:", BOT_TOKEN);
 
-// export default app;
-// import "dotenv/config";
-// import express from "express";
-// import fetch from "node-fetch";
-// import nodemailer from "nodemailer";
-
-// const app = express();
-// app.use(express.json());
-
-// // === Telegram Bot Setup ===
-// const BOT_TOKEN = process.env.BOT_TOKEN;
-// const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
-
-// // === Email Info ===
-// const EMAIL_USER = process.env.EMAIL_USER;
-// const EMAIL_PASS = process.env.EMAIL_PASS;
-// const TO_EMAIL = process.env.TO_EMAIL;
-
-// // === Email Transporter ===
-// const transporter = nodemailer.createTransport({
-//   service: "gmail",
-//   auth: {
-//     user: EMAIL_USER,
-//     pass: EMAIL_PASS,
-//   },
-// });
-
-// // === Group Rules ===
-// const GROUP_RULES = [
-//   "1️⃣ Be respectful to everyone.",
-//   "2️⃣ No hate speech or bullying.",
-//   "3️⃣ No spam or self-promotion.",
-//   "4️⃣ Keep conversations relevant.",
-//   "5️⃣ No NSFW content.",
-//   "6️⃣ Avoid sharing fake news.",
-//   "7️⃣ Listen to admins’ instructions.",
-//   "8️⃣ Use English when possible.",
-//   "9️⃣ Report suspicious users.",
-//   "🔟 Have fun responsibly!",
-// ];
-
-// // === Banned Words ===
-// const BANNED_WORDS = ["scam", "spam", "nsfw", "fake", "offensive"];
-
-// // === Track User Violations ===
-// const violations = new Map(); // { userId: count }
-
-// // === Function to Send Telegram Messages ===
-// async function sendMessage(chatId, text, extra = {}) {
-//   try {
-//     const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({ chat_id: chatId, text, ...extra }),
-//     });
-//     const data = await res.json();
-//     if (!data.ok) console.error("❌ Telegram error:", data);
-//   } catch (err) {
-//     console.error("⚠️ Failed to send Telegram message:", err.message);
-//   }
-// }
-
-// // === Function to Ban User ===
-// async function banUser(chatId, userId) {
-//   try {
-//     await fetch(`${TELEGRAM_API}/banChatMember`, {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({ chat_id: chatId, user_id: userId }),
-//     });
-//     console.log(`🚫 Banned user ${userId} in chat ${chatId}`);
-//   } catch (err) {
-//     console.error("⚠️ Failed to ban user:", err.message);
-//   }
-// }
-
-// // === Function to Purge Group Messages ===
-// async function purgeChat(chatId) {
-//   try {
-//     await sendMessage(chatId, "🧹 Purging recent messages...");
-//     // Telegram bots can’t bulk delete easily; instead, send a notice.
-//     // Admins can manually clean up if needed.
-//   } catch (err) {
-//     console.error("⚠️ Failed to purge chat:", err.message);
-//   }
-// }
-
-// // === Handle Webhook Updates ===
-// app.post("/", async (req, res) => {
-//   const update = req.body;
-//   console.log("📩 Incoming update:", JSON.stringify(update, null, 2));
-
-//   try {
-//     const message = update.message;
-//     if (!message) return res.sendStatus(200);
-
-//     const chatId = message.chat.id;
-//     const userId = message.from?.id;
-//     const username =
-//       message.from?.username || message.from?.first_name || "User";
-//     const text = message.text?.toLowerCase() || "";
-
-//     // 🧍 New member joins
-//     if (message.new_chat_members) {
-//       const names = message.new_chat_members
-//         .map((u) => u.first_name)
-//         .join(", ");
-//       await sendMessage(
-//         chatId,
-//         `👋 Welcome ${names}!\nPlease read and follow our group rules:\n\n${GROUP_RULES.join(
-//           "\n"
-//         )}`
-//       );
-//     }
-
-//     // 🚨 Check for banned words
-//     if (BANNED_WORDS.some((word) => text.includes(word))) {
-//       const count = (violations.get(userId) || 0) + 1;
-//       violations.set(userId, count);
-
-//       if (count >= 2) {
-//         await banUser(chatId, userId);
-//         await sendMessage(
-//           chatId,
-//           `🚫 @${username} has been banned for repeated rule violations.`
-//         );
-//       } else {
-//         await sendMessage(
-//           chatId,
-//           `⚠️ @${username}, please avoid using prohibited words.`
-//         );
-//       }
-//     }
-
-//     // ⚙️ Commands
-//     if (text === "/remind") {
-//       await sendMessage(
-//         chatId,
-//         "⚠️ Admins would never DM you first. Beware of scammers."
-//       );
-//     }
-
-//     if (text === "/purge") {
-//       await purgeChat(chatId);
-//     }
-
-//     // 💬 Private chat logic
-//     if (message.chat.type === "private") {
-//       if (text === "/start") {
-//         const keyboard = {
-//           inline_keyboard: [
-//             [
-//               {
-//                 text: "Visit Website 🌐",
-//                 url: "https://cryptoportal.byethost8.com",
-//               },
-//               {
-//                 text: "Join Group 💬",
-//                 url: "https://t.me/multiversX_1official",
-//               },
-//             ],
-//             [{ text: "Help ❓", callback_data: "help" }],
-//           ],
-//         };
-//         await sendMessage(
-//           chatId,
-//           `👋 Hi ${username}! Welcome to Xverse. Choose an option below:`,
-//           {
-//             reply_markup: keyboard,
-//           }
-//         );
-//       } else if (text === "/help") {
-//         await sendMessage(
-//           chatId,
-//           "How can I assist you today? Please type your question below."
-//         );
-//       } else if (!text.startsWith("/")) {
-//         // Ask 3 more questions before sending email
-//         const followUpQuestions = [
-//           "Kindly input your email address?",
-//           "Describe the issue you are having briefly?",
-//           "What app or platform do you use?",
-//         ];
-
-//         for (const q of followUpQuestions) {
-//           await sendMessage(chatId, q);
-//         }
-
-//         const mailOptions = {
-//           from: EMAIL_USER,
-//           to: TO_EMAIL,
-//           subject: "New Bot Submission + Follow-up",
-//           text: `User @${username} said:\n\n${text}\n\nFollow-up questions were sent.`,
-//         };
-
-//         try {
-//           await transporter.sendMail(mailOptions);
-//           await sendMessage(
-//             chatId,
-//             "✅ Your responses have been received and processed successfully."
-//           );
-//         } catch (err) {
-//           console.error("📧 Email sending failed:", err.message);
-//           await sendMessage(
-//             chatId,
-//             "⚠️ Failed to send your response. Please try again."
-//           );
-//         }
-//       }
-//     }
-
-//     res.sendStatus(200);
-//   } catch (err) {
-//     console.error("❌ Error processing update:", err.message);
-//     res.sendStatus(500);
-//   }
-// });
-
-// // === Root Route for Testing ===
-// app.get("/", (req, res) => res.send("✅ Bot is live and running!"));
-
-// // === Local Server (only when not on Vercel) ===
-// const PORT = process.env.PORT || 3000;
-// if (process.env.NODE_ENV !== "vercel") {
-//   app.listen(PORT, () => console.log(`🚀 Bot listening on port ${PORT}`));
-// }
-
-// console.log("✅ Bot script started...");
-// console.log("🧩 Loaded BOT_TOKEN:", BOT_TOKEN);
-
-// export default app;
+export default app;
+import "dotenv/config";
 import express from "express";
-import TelegramBot from "node-telegram-bot-api";
-import dotenv from "dotenv";
+import fetch from "node-fetch";
 import nodemailer from "nodemailer";
-
-dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// === BOT INITIALIZATION ===
-const bot = new TelegramBot(process.env.BOT_TOKEN);
-const WEBHOOK_URL = process.env.WEBHOOK_URL; // e.g. your Vercel URL
+// === Telegram Bot Setup ===
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// Set webhook
-bot.setWebHook(`${WEBHOOK_URL}/webhook/${process.env.BOT_TOKEN}`);
+// === Email Info ===
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+const TO_EMAIL = process.env.TO_EMAIL;
 
-const sessions = new Map(); // For private chat steps
-
-// === EMAIL TRANSPORT ===
+// === Email Transporter ===
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
+  },
 });
 
-// === WEBHOOK ROUTE ===
-app.post(`/webhook/${process.env.BOT_TOKEN}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
+// === Group Rules ===
+const GROUP_RULES = [
+  "1️⃣ Be respectful to everyone.",
+  "2️⃣ No hate speech or bullying.",
+  "3️⃣ No spam or self-promotion.",
+  "4️⃣ Keep conversations relevant.",
+  "5️⃣ No NSFW content.",
+  "6️⃣ Avoid sharing fake news.",
+  "7️⃣ Listen to admins’ instructions.",
+  "8️⃣ Use English when possible.",
+  "9️⃣ Report suspicious users.",
+  "🔟 Have fun responsibly!",
+];
 
-// === COMMANDS ===
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const username = msg.from?.username || msg.from?.first_name || "there";
+// === Banned Words ===
+const BANNED_WORDS = ["scam", "spam", "nsfw", "fake", "offensive"];
 
-  const startButton = {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "🚀 Start App",
-            url: `https://t.me/${process.env.BOT_USERNAME}?start=app`,
-          },
-        ],
-      ],
-    },
-  };
+// === Track User Violations ===
+const violations = new Map(); // { userId: count }
 
-  bot.sendMessage(
-    chatId,
-    `👋 Hi @${username}! Welcome to the bot.\nPress below to start.`,
-    startButton
-  );
-});
-
-// === PRIVATE CHAT STEPS (same as before) ===
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const text = msg.text;
-  const isGroup = msg.chat.type.endsWith("group");
-
-  // Skip commands and groups
-  if (isGroup || text.startsWith("/")) return;
-
-  const questions = [
-    "📧 Please enter your email address:",
-    "📝 Briefly describe your issue:",
-    "📱 Which app or platform are you using?",
-  ];
-
-  const session = sessions.get(userId) || { step: 0, answers: [] };
-
-  if (session.step < questions.length) {
-    session.answers.push(text);
-    session.step++;
-
-    if (session.step < questions.length) {
-      await bot.sendMessage(chatId, questions[session.step]);
-    } else {
-      const [firstMsg, email, issue, platform] = session.answers;
-
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: process.env.TO_EMAIL,
-        subject: `New Response from @${msg.from.username || "User"}`,
-        text: `🧾 New submission:\n\nFirst message: ${firstMsg}\nEmail: ${email}\nIssue: ${issue}\nPlatform: ${platform}`,
-      };
-
-      try {
-        await transporter.sendMail(mailOptions);
-        await bot.sendMessage(
-          chatId,
-          "✅ Thank you! Your response was sent successfully."
-        );
-      } catch (err) {
-        console.error("Email error:", err);
-        await bot.sendMessage(chatId, "⚠️ Failed to send your response.");
-      }
-
-      sessions.delete(userId);
-    }
+// === Function to Send Telegram Messages ===
+async function sendMessage(chatId, text, extra = {}) {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, ...extra }),
+    });
+    const data = await res.json();
+    if (!data.ok) console.error("❌ Telegram error:", data);
+  } catch (err) {
+    console.error("⚠️ Failed to send Telegram message:", err.message);
   }
+}
 
-  sessions.set(userId, session);
+// === Function to Ban User ===
+async function banUser(chatId, userId) {
+  try {
+    await fetch(`${TELEGRAM_API}/banChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, user_id: userId }),
+    });
+    console.log(`🚫 Banned user ${userId} in chat ${chatId}`);
+  } catch (err) {
+    console.error("⚠️ Failed to ban user:", err.message);
+  }
+}
+
+// === Function to Purge Group Messages ===
+async function purgeChat(chatId) {
+  try {
+    await sendMessage(chatId, "🧹 Purging recent messages...");
+    // Telegram bots can’t bulk delete easily; instead, send a notice.
+    // Admins can manually clean up if needed.
+  } catch (err) {
+    console.error("⚠️ Failed to purge chat:", err.message);
+  }
+}
+
+// === Handle Webhook Updates ===
+app.post("/", async (req, res) => {
+  const update = req.body;
+  console.log("📩 Incoming update:", JSON.stringify(update, null, 2));
+
+  try {
+    const message = update.message;
+    if (!message) return res.sendStatus(200);
+
+    const chatId = message.chat.id;
+    const userId = message.from?.id;
+    const username =
+      message.from?.username || message.from?.first_name || "User";
+    const text = message.text?.toLowerCase() || "";
+
+    // 🧍 New member joins
+    if (message.new_chat_members) {
+      const names = message.new_chat_members
+        .map((u) => u.first_name)
+        .join(", ");
+      await sendMessage(
+        chatId,
+        `👋 Welcome ${names}!\nPlease read and follow our group rules:\n\n${GROUP_RULES.join(
+          "\n"
+        )}`
+      );
+    }
+
+    // 🚨 Check for banned words
+    if (BANNED_WORDS.some((word) => text.includes(word))) {
+      const count = (violations.get(userId) || 0) + 1;
+      violations.set(userId, count);
+
+      if (count >= 2) {
+        await banUser(chatId, userId);
+        await sendMessage(
+          chatId,
+          `🚫 @${username} has been banned for repeated rule violations.`
+        );
+      } else {
+        await sendMessage(
+          chatId,
+          `⚠️ @${username}, please avoid using prohibited words.`
+        );
+      }
+    }
+
+    // ⚙️ Commands
+    if (text === "/remind") {
+      await sendMessage(
+        chatId,
+        "⚠️ Admins would never DM you first. Beware of scammers."
+      );
+    }
+
+    if (text === "/purge") {
+      await purgeChat(chatId);
+    }
+
+    // 💬 Private chat logic
+    if (message.chat.type === "private") {
+      if (text === "/start") {
+        const keyboard = {
+          inline_keyboard: [
+            [
+              {
+                text: "Visit Website 🌐",
+                url: "https://cryptoportal.byethost8.com",
+              },
+              {
+                text: "Join Group 💬",
+                url: "https://t.me/multiversX_1official",
+              },
+            ],
+            [{ text: "Help ❓", callback_data: "help" }],
+          ],
+        };
+        await sendMessage(
+          chatId,
+          `👋 Hi ${username}! Welcome to Xverse. Choose an option below:`,
+          {
+            reply_markup: keyboard,
+          }
+        );
+      } else if (text === "/help") {
+        await sendMessage(
+          chatId,
+          "How can I assist you today? Please type your question below."
+        );
+      } else if (!text.startsWith("/")) {
+        // Ask 3 more questions before sending email
+        const followUpQuestions = [
+          "Kindly input your email address?",
+          "Describe the issue you are having briefly?",
+          "What app or platform do you use?",
+        ];
+
+        for (const q of followUpQuestions) {
+          await sendMessage(chatId, q);
+        }
+
+        const mailOptions = {
+          from: EMAIL_USER,
+          to: TO_EMAIL,
+          subject: "New Bot Submission + Follow-up",
+          text: `User @${username} said:\n\n${text}\n\nFollow-up questions were sent.`,
+        };
+
+        try {
+          await transporter.sendMail(mailOptions);
+          await sendMessage(
+            chatId,
+            "✅ Your responses have been received and processed successfully."
+          );
+        } catch (err) {
+          console.error("📧 Email sending failed:", err.message);
+          await sendMessage(
+            chatId,
+            "⚠️ Failed to send your response. Please try again."
+          );
+        }
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("❌ Error processing update:", err.message);
+    res.sendStatus(500);
+  }
 });
 
-// === EXPRESS ROOT ROUTE ===
-app.get("/", (req, res) => {
-  res.send("🤖 Telegram Bot is live on Vercel!");
-});
+// === Root Route for Testing ===
+app.get("/", (req, res) => res.send("✅ Bot is live and running!"));
 
-export default app;
+// === Local Server (only when not on Vercel) ===
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== "vercel") {
+  app.listen(PORT, () => console.log(`🚀 Bot listening on port ${PORT}`));
+}
+
+console.log("✅ Bot script started...");
+console.log("🧩 Loaded BOT_TOKEN:", BOT_TOKEN);
